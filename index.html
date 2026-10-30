@@ -2,24 +2,43 @@
 <html lang="my">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Income Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px;color:#222}
-.container{max-width:500px;margin:auto}
+body{font-family:Arial;background:#f1f5f9;margin:0;padding:18px;color:#222}
+main{max-width:480px;margin:auto}
+.card{background:white;padding:18px;border-radius:14px;margin:14px 0;box-shadow:0 2px 8px #ddd}
 h2{text-align:center;color:#2563eb}
-.card{background:white;padding:18px;border-radius:12px;margin:12px 0;box-shadow:0 2px 8px #ddd}
-input,select,button{width:100%;padding:12px;margin:7px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:8px;font-size:16px}
-button{background:#2563eb;color:white;border:0;font-weight:bold}
-.balance{font-size:25px;color:#16a34a;font-weight:bold}
-.item{border-bottom:1px solid #ddd;padding:10px 0}
-.delete{background:#dc2626;padding:7px;margin-top:5px}
+input,button,select{width:100%;padding:13px;margin:7px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:8px;font-size:16px}
+button{background:#2563eb;color:white;border:0}
+.hide{display:none}
+.balance{font-size:27px;color:#16a34a;font-weight:bold}
+.item{padding:10px 0;border-bottom:1px solid #ddd}
+.del{background:#dc2626}
 </style>
 </head>
 <body>
-<div class="container">
+<main>
 <h2>💰 Income Tracker</h2>
 
+<section class="card" id="setup">
+<h3>ပထမဆုံး Setup လုပ်ပါ</h3>
+<input id="url" placeholder="Supabase Project URL">
+<input id="key" placeholder="Publishable / anon public key">
+<button onclick="connect()">ချိတ်ဆက်မည်</button>
+</section>
+
+<section class="card hide" id="auth">
+<h3>Login / Sign up</h3>
+<input id="email" type="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="signup()">အကောင့်အသစ်ဖွင့်မည်</button>
+<button onclick="login()">Login ဝင်မည်</button>
+<p id="message"></p>
+</section>
+
+<section id="app" class="hide">
 <div class="card">
 <p>လက်ကျန်ငွေ</p>
 <div class="balance" id="balance">0 Ks</div>
@@ -34,69 +53,110 @@ button{background:#2563eb;color:white;border:0;font-weight:bold}
 <option value="expense">ထွက်ငွေ</option>
 </select>
 <input id="amount" type="number" placeholder="ငွေပမာဏ">
-<input id="note" type="text" placeholder="အကြောင်းအရာ">
+<input id="note" placeholder="အကြောင်းအရာ">
 <button onclick="addRecord()">ထည့်မည်</button>
 </div>
 
 <div class="card">
 <h3>မှတ်တမ်းများ</h3>
 <div id="records"></div>
+<button onclick="logout()">Logout</button>
 </div>
-</div>
+</section>
+</main>
 
 <script>
-let records = JSON.parse(localStorage.getItem("records") || "[]");
+let client=null;
+let records=[];
+let userKey="";
 
-function save(){
-localStorage.setItem("records",JSON.stringify(records));
+function connect(){
+const url=document.getElementById("url").value.trim();
+const key=document.getElementById("key").value.trim();
+if(!url||!key){alert("URL နဲ့ Key ဖြည့်ပါ");return;}
+try{
+client=window.supabase.createClient(url,key);
+localStorage.setItem("sburl",url);
+localStorage.setItem("sbkey",key);
+document.getElementById("setup").classList.add("hide");
+document.getElementById("auth").classList.remove("hide");
+client.auth.getSession().then(({data})=>{
+if(data.session) start(data.session.user);
+});
+}catch(e){alert("ချိတ်ဆက်မှု မအောင်မြင်ပါ");}
+}
+
+async function signup(){
+const email=document.getElementById("email").value.trim();
+const password=document.getElementById("password").value;
+if(!email||password.length<6){alert("Email ဖြည့်ပြီး Password အနည်းဆုံး ၆ လုံးထားပါ");return;}
+const {error}=await client.auth.signUp({email,password});
+document.getElementById("message").textContent=error?error.message:"အကောင့်ဖွင့်ပြီးပါပြီ။ Email ကိုစစ်ပြီး အတည်ပြုပါ။";
+}
+
+async function login(){
+const email=document.getElementById("email").value.trim();
+const password=document.getElementById("password").value;
+const {data,error}=await client.auth.signInWithPassword({email,password});
+if(error){document.getElementById("message").textContent=error.message;return;}
+start(data.user);
+}
+
+function start(user){
+userKey="income_records_"+user.id;
+records=JSON.parse(localStorage.getItem(userKey)||"[]");
+document.getElementById("auth").classList.add("hide");
+document.getElementById("app").classList.remove("hide");
 show();
 }
 
 function addRecord(){
-let kind=document.getElementById("kind").value;
-let amount=Number(document.getElementById("amount").value);
-let note=document.getElementById("note").value;
-
-if(!amount || amount<=0){
-alert("ငွေပမာဏ မှန်ကန်စွာထည့်ပါ");
-return;
-}
-
+const kind=document.getElementById("kind").value;
+const amount=Number(document.getElementById("amount").value);
+const note=document.getElementById("note").value;
+if(!amount||amount<0){alert("ငွေပမာဏ ထည့်ပါ");return;}
 records.unshift({kind,amount,note});
+save();
 document.getElementById("amount").value="";
 document.getElementById("note").value="";
-save();
 }
 
-function removeRecord(index){
-if(confirm("ဒီမှတ်တမ်းကို ဖျက်မှာလား?")){
-records.splice(index,1);
-save();
+function removeRecord(i){
+if(confirm("ဖျက်မှာ သေချာပါသလား?")){
+records.splice(i,1);save();
 }
+}
+
+function save(){
+localStorage.setItem(userKey,JSON.stringify(records));
+show();
 }
 
 function show(){
-let income=0,expense=0;
-let html="";
-
+let inc=0,exp=0,html="";
 records.forEach((r,i)=>{
-if(r.kind==="income") income+=r.amount;
-else expense+=r.amount;
-
-html+=`<div class="item">
-${r.kind==="income"?"🟢 ဝင်ငွေ":"🔴 ထွက်ငွေ"} - ${r.amount.toLocaleString()} Ks
-<br>${r.note}
-<button class="delete" onclick="removeRecord(${i})">ဖျက်မည်</button>
-</div>`;
+if(r.kind==="income")inc+=r.amount;else exp+=r.amount;
+html+=`<div class="item">${r.kind==="income"?"🟢 ဝင်ငွေ":"🔴 ထွက်ငွေ"} - ${r.amount.toLocaleString()} Ks<br>${r.note||""}<button class="del" onclick="removeRecord(${i})">ဖျက်မည်</button></div>`;
 });
-
-document.getElementById("income").textContent=income.toLocaleString();
-document.getElementById("expense").textContent=expense.toLocaleString();
-document.getElementById("balance").textContent=(income-expense).toLocaleString()+" Ks";
-document.getElementById("records").innerHTML=html || "မှတ်တမ်းမရှိသေးပါ";
+document.getElementById("income").textContent=inc.toLocaleString();
+document.getElementById("expense").textContent=exp.toLocaleString();
+document.getElementById("balance").textContent=(inc-exp).toLocaleString()+" Ks";
+document.getElementById("records").innerHTML=html||"မှတ်တမ်းမရှိသေးပါ";
 }
 
-show();
+async function logout(){
+await client.auth.signOut();
+document.getElementById("app").classList.add("hide");
+document.getElementById("auth").classList.remove("hide");
+}
+
+const savedUrl=localStorage.getItem("sburl");
+const savedKey=localStorage.getItem("sbkey");
+if(savedUrl&&savedKey){
+document.getElementById("url").value=savedUrl;
+document.getElementById("key").value=savedKey;
+connect();
+}
 </script>
 </body>
 </html>
