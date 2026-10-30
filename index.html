@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Income Tracker</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px;color:#222}
+.container{max-width:500px;margin:auto}
+h2{text-align:center;color:#2563eb}
+.card{background:white;padding:18px;border-radius:12px;margin:12px 0;box-shadow:0 2px 8px #ddd}
+input,select,button{width:100%;padding:12px;margin:7px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:8px;font-size:16px}
+button{background:#2563eb;color:white;border:0;font-weight:bold}
+.balance{font-size:25px;color:#16a34a;font-weight:bold}
+.item{border-bottom:1px solid #ddd;padding:10px 0}
+.delete{background:#dc2626;padding:7px;margin-top:5px}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>💰 Income Tracker</h2>
+
+<div class="card">
+<p>လက်ကျန်ငွေ</p>
+<div class="balance" id="balance">0 Ks</div>
+<p>ဝင်ငွေ: <span id="income">0</span> Ks</p>
+<p>ထွက်ငွေ: <span id="expense">0</span> Ks</p>
+</div>
+
+<div class="card">
+<h3>စာရင်းအသစ်ထည့်ရန်</h3>
+<select id="kind">
+<option value="income">ဝင်ငွေ</option>
+<option value="expense">ထွက်ငွေ</option>
+</select>
+<input id="amount" type="number" placeholder="ငွေပမာဏ">
+<input id="note" type="text" placeholder="အကြောင်းအရာ">
+<button onclick="addRecord()">ထည့်မည်</button>
+</div>
+
+<div class="card">
+<h3>မှတ်တမ်းများ</h3>
+<div id="records"></div>
+</div>
+</div>
+
+<script>
+let records = JSON.parse(localStorage.getItem("records") || "[]");
+
+function save(){
+localStorage.setItem("records",JSON.stringify(records));
+show();
+}
+
+function addRecord(){
+let kind=document.getElementById("kind").value;
+let amount=Number(document.getElementById("amount").value);
+let note=document.getElementById("note").value;
+
+if(!amount || amount<=0){
+alert("ငွေပမာဏ မှန်ကန်စွာထည့်ပါ");
+return;
+}
+
+records.unshift({kind,amount,note});
+document.getElementById("amount").value="";
+document.getElementById("note").value="";
+save();
+}
+
+function removeRecord(index){
+if(confirm("ဒီမှတ်တမ်းကို ဖျက်မှာလား?")){
+records.splice(index,1);
+save();
+}
+}
+
+function show(){
+let income=0,expense=0;
+let html="";
+
+records.forEach((r,i)=>{
+if(r.kind==="income") income+=r.amount;
+else expense+=r.amount;
+
+html+=`<div class="item">
+${r.kind==="income"?"🟢 ဝင်ငွေ":"🔴 ထွက်ငွေ"} - ${r.amount.toLocaleString()} Ks
+<br>${r.note}
+<button class="delete" onclick="removeRecord(${i})">ဖျက်မည်</button>
+</div>`;
+});
+
+document.getElementById("income").textContent=income.toLocaleString();
+document.getElementById("expense").textContent=expense.toLocaleString();
+document.getElementById("balance").textContent=(income-expense).toLocaleString()+" Ks";
+document.getElementById("records").innerHTML=html || "မှတ်တမ်းမရှိသေးပါ";
+}
+
+show();
+</script>
+</body>
+</html>
